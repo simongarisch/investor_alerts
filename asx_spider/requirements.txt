@@ -1,4 +1,4 @@
-requests-2.19.1
-beautifulsoup4-4.6.0
-fake-useragent-0.1.10
-pip install mysql-connector
+requests==2.19.1
+beautifulsoup==4-4.6.0
+fake-useragent==0.1.10
+mysql-connector==2.1.6
