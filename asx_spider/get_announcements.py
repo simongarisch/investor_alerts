@@ -1,4 +1,4 @@
-#!/home/henry/anaconda3/envs/asx_alerts/bin/python3
+#!/home/ubuntu/anaconda3/envs/investor_alerts/bin/python3
 # -*- coding: utf-8 -*-
 
 
@@ -16,7 +16,7 @@ def lookup_company_id(ticker, cursor):
         cursor.execute("SELECT id FROM announcements_company WHERE asx_code_aka = '%s'" % ticker)
         company_id = cursor.fetchone()[0]
     except TypeError as e:
-        print("WARNING: Could not find '%s' in the database, assigning to 'Unknown'" % ticker)
+        rs.logger.warning("Could not find '%s' in the database, assigning to 'Unknown'" % ticker)
         cursor.execute("SELECT id FROM announcements_company WHERE asx_code_aka = 'ZZZ'")
         company_id = cursor.fetchone()[0]
 
@@ -48,7 +48,7 @@ def insert_announcements_to_db(asx_announcements):
         cnx.commit()
         rs.last_url_entry = asx_announcements[-1][4]
     except mysql.connector.Error as err:
-        print(err)
+        rs.logger.warning(err)
         cnx.rollback()
 
     cursor.close()
@@ -58,11 +58,12 @@ def insert_announcements_to_db(asx_announcements):
 
 if __name__ == '__main__':
     rs = AsxSpider()
+    rs.logger.info("ASX Spider successfully initiated, starting scrape sequence")
 
     while True:
         if rs.check_opening_hours():
-            print("The ASX announcement platform is currently closed. Shutting down")
-            raise SystemExit
+            rs.logger.info("The ASX announcement platform is currently closed. Shutting down")
+#            raise SystemExit
 
         if rs.check_proxies():
             rs.refresh_proxies()
@@ -70,10 +71,10 @@ if __name__ == '__main__':
         rs.get_asx_announcements()
         if rs.asx_announcements:
             insert_announcements_to_db(rs.asx_announcements)
-            print("INFO: Scrape complete. %s announcement(s) saved to db" % len(rs.asx_announcements))
+            rs.logger.info("INFO: Scrape complete. %s announcement(s) saved to db" % len(rs.asx_announcements))
         else:
-            print("INFO: Scrape complete. No new announcements")
-        time.sleep(10)
+            rs.logger.info("INFO: Scrape complete. No new announcements")
+        time.sleep(15)
 
     # TO DO: Create an alert
 

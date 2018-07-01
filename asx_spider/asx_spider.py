@@ -1,14 +1,17 @@
-#!/home/henry/anaconda3/envs/asx_alerts/bin/python3
+#!/home/ubuntu/anaconda2/envs/asx_alerts/bin/python3
 # -*- coding: utf-8 -*-
 
 import requests
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from datetime import datetime, time
+import os
 import random
 import csv
 import json
+import logging
 import mysql.connector
+
 
 
 
@@ -24,6 +27,35 @@ class AsxSpider:
         self.last_url_entry = ""
         self.cnx = None
         self.mysql_config = self.get_mysql_config()
+        self.logger = self.setup_logging()
+
+
+
+    def setup_logging(self):
+        # Setup logging
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+
+        if not logger.handlers:
+            # Logging setup: create a file handler
+            fileDir = os.path.dirname(os.path.abspath(__file__))
+            filename = os.path.join(fileDir, str("log/asx_spider_" + datetime.now().strftime("%d-%m-%Y") + ".log"))
+            handler = logging.FileHandler(filename)
+            handler.setLevel(logging.INFO)
+
+            # Logging setup: create a logging format
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+
+            # Console logging
+            consoleHandler = logging.StreamHandler()
+            consoleHandler.setFormatter(formatter)
+
+            # Logging setup: add the handlers to the logger
+            logger.addHandler(handler)
+            logger.addHandler(consoleHandler)
+
+        return logger
 
     @classmethod
     def get_user_agent(self):
@@ -34,8 +66,9 @@ class AsxSpider:
     @classmethod
     def get_mysql_config(self):
         """Reads a mysql config.json file and returns the config ARGS"""
-
-        with open('mysql_config.json', 'r') as config:
+        fileDir = os.path.dirname(os.path.abspath(__file__))
+        filename = os.path.join(fileDir, 'mysql_config.json')
+        with open(filename, 'r') as config:
             mysql_config = json.load(config)
             return mysql_config
 
@@ -53,7 +86,7 @@ class AsxSpider:
             result = requests.get(url, headers=headers, timeout=5)
 
             if result.status_code != 200:
-                print("Request status code for refresh_proxies() did not return 200")
+                self.logger.warning("Request status code for refresh_proxies() did not return 200")
                 return False
 
             content = result.content.decode('utf-8')
@@ -70,24 +103,24 @@ class AsxSpider:
                 # Raise an error message / admin notification
                 return False
 
-            print("INFO: Fresh proxies successfully obtained")
+            self.logger.info("Fresh proxies successfully obtained")
             self.proxies_updated_at = datetime.now()
             return True
 
         except requests.ConnectionError as e:
-            print("OOPS!! Connection Error. Make sure you are connected to Internet. Technical Details given below.\n")
-            print(str(e))
+            self.logger.warning("OOPS!! Connection Error. Make sure you are connected to Internet. Technical Details given below.\n")
+            self.logger.warning(str(e))
         except requests.Timeout as e:
-            print("OOPS!! Timeout Error")
-            print(str(e))
+            self.logger.warning("OOPS!! Timeout Error")
+            self.logger.warning(str(e))
         except requests.RequestException as e:
-            print("OOPS!! General Error")
-            print(str(e))
+            self.logger.warning("OOPS!! General Error")
+            self.logger.warning(str(e))
         except KeyboardInterrupt:
-            print("Someone closed the program")
+            self.logger.warning("Someone closed the program")
 
 
-        print("WARNING: Could not refresh proxies")
+        self.logger.critical("WARNING: Could not refresh proxies")
         return False
 
     def check_proxies(self):
@@ -207,16 +240,16 @@ class AsxSpider:
                 result = requests.get(url, proxies=proxies, headers=headers, timeout=5)
 
                 if result.status_code != 200:
-                    print("Request status code for get_asx_announcements() did not return 200")
+                    self.logger.warning("Request status code for get_asx_announcements() did not return 200")
                     return False
 
                 content = result.content.decode('utf-8')
                 soup = BeautifulSoup(content, "lxml")
-                print("Scraped ASX page with: %s" % proxy)
+                self.logger.info("Scraped ASX page with: %s" % proxy)
 
                 no_announcements = "No company announcements have been published by ASX"
                 if no_announcements in soup.select("p")[0].text:
-                    print("After scanning: There have been no ASX announcements today")
+                    self.logger.info("After scanning: There have been no ASX announcements today")
                     return True
 
                 self.parse_asx_data(soup)
@@ -232,13 +265,14 @@ class AsxSpider:
 #                print("OOPS!! Connection Error. Make sure you are connected to Internet. Technical Details given below.\n")
 #                print(str(e))
             except requests.exceptions.Timeout as e:
-                print("OOPS!! Timeout Error")
-                print(str(e))
+                # print("OOPS!! Timeout Error")
+                # print(str(e))
+                pass
             except requests.exceptions.RequestException as e:
-                print("OOPS!! General Error")
-                print(str(e))
+                self.logger.warning("OOPS!! General Error trying to get asx announcements")
+                self.logger.warning(str(e))
             except KeyboardInterrupt:
-                print("Someone closed the program")
+                self.logger.warning("Someone closed the program")
 
 
     def get_asx_companies(self):
@@ -268,10 +302,8 @@ class AsxSpider:
                 result = requests.get(csv_url, proxies=proxies, headers=headers, timeout=5)
 
                 if result.status_code != 200:
-                    print("Request status code for get_asx_companies() did not return 200")
+                    self.logger.warning("Request status code for get_asx_companies() did not return 200")
                     return False
-
-                print(proxy)
 
                 decoded_content = result.content.decode('utf-8')
 
@@ -281,26 +313,27 @@ class AsxSpider:
                 # remove table header and white space
                 del my_list[0:3]
 
-                print("Successfully obtained ASX companies CSV")
+                self.logger.info("Successfully obtained ASX companies CSV")
 
                 return my_list
 
             except requests.exceptions.ProxyError as e:
                 del self.proxies[proxy_index]
-                print("An error occurred with the proxy: Removing the proxy and trying again...")
+                # print("An error occurred with the proxy: Removing the proxy and trying again...")
             except requests.exceptions.ConnectionError as e:
                 del self.proxies[proxy_index]
-                print("An error occurred with the proxy: Removing the proxy and trying again...")
-                print("OOPS!! Connection Error. Make sure you are connected to Internet. Technical Details given below.\n")
-                print(str(e))
+                # print("An error occurred with the proxy: Removing the proxy and trying again...")
+                # print("OOPS!! Connection Error. Make sure you are connected to Internet. Technical Details given below.\n")
+                # print(str(e))
             except requests.exceptions.Timeout as e:
-                print("OOPS!! Timeout Error")
-                print(str(e))
+                # print("OOPS!! Timeout Error")
+                # print(str(e))
+                pass
             except requests.exceptions.RequestException as e:
-                print("OOPS!! General Error")
-                print(str(e))
+                self.logger.warning("OOPS!! General Error trying to get asx companies csv")
+                self.logger.warning(str(e))
             except KeyboardInterrupt:
-                print("Someone closed the program")
+                self.logger.warning("Someone closed the program")
 
     def get_asx_etfs_marketindex(self):
         """Requests data from marketwatch.com.au that contains a list of all
@@ -327,10 +360,10 @@ class AsxSpider:
                 result = requests.get(url, proxies=proxies, headers=headers, timeout=5)
 
                 if result.status_code != 200:
-                    print("Request status code for get_asx_etfs() did not return 200")
+                    self.logger.warning("Request status code for get_asx_etfs() did not return 200")
                     return False
 
-                print("successfully obtained ETF data")
+                self.logger.info("successfully obtained ETF data from marketindex.com.au")
                 content = result.content
                 soup = BeautifulSoup(content, "lxml")
                 data = soup.select("tbody tr")
@@ -348,20 +381,21 @@ class AsxSpider:
 
             except requests.exceptions.ProxyError as e:
                 del self.proxies[proxy_index]
-                print("An error occurred with the proxy: Removing the proxy and trying again...")
+                # print("An error occurred with the proxy: Removing the proxy and trying again...")
             except requests.exceptions.ConnectionError as e:
                 del self.proxies[proxy_index]
-                print("An error occurred with the proxy: Removing the proxy and trying again...")
-                print("OOPS!! Connection Error. Make sure you are connected to Internet. Technical Details given below.\n")
-                print(str(e))
+                # print("An error occurred with the proxy: Removing the proxy and trying again...")
+                # print("OOPS!! Connection Error. Make sure you are connected to Internet. Technical Details given below.\n")
+                # print(str(e))
             except requests.exceptions.Timeout as e:
-                print("OOPS!! Timeout Error")
-                print(str(e))
+                # print("OOPS!! Timeout Error")
+                # print(str(e))
+                pass
             except requests.exceptions.RequestException as e:
-                print("OOPS!! General Error")
-                print(str(e))
+                self.logger.warning("OOPS!! General Error trying to get ETF info from marketindex.com.au")
+                self.logger.warning(str(e))
             except KeyboardInterrupt:
-                print("Someone closed the program")
+                self.logger.warning("Someone closed the program")
 
 
     @classmethod

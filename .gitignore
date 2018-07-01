@@ -1,9 +1,13 @@
 /asx_spider/test.py
 /asx_spider/setup.py
 /asx_spider/mysql_config.json
+/asx_spider/mysql_config2.json
 /asx_spider/__pycache__/
 /backend/
 /backend/backend/settings.py
 ./__pycache__/
 investor_alerts.pem
 ssh.txt
+
+/asxspider/log/*
+!/asxspider/log/.gitkeep 
