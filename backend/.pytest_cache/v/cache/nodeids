@@ -1,0 +1,4 @@
+[
+  "announcements/tests/test_models.py::test_company",
+  "announcements/tests/test_models.py::test_announcement"
+]

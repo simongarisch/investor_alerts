@@ -63,7 +63,7 @@ if __name__ == '__main__':
     while True:
         if rs.check_opening_hours():
             rs.logger.info("The ASX announcement platform is currently closed. Shutting down")
-#            raise SystemExit
+            break
 
         if rs.check_proxies():
             rs.refresh_proxies()
